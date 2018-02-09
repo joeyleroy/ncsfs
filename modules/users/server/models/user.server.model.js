@@ -1,5 +1,12 @@
 'use strict';
 
+//User model for MySQL, MariaDB, SQLite and MSSQL database dialects 
+
+/** 
+* File Path: /modules/users/server/models/user.server.model.js
+* File Version: 0.2
+*/
+
 /**
  * User Model
  */
@@ -103,9 +110,14 @@ module.exports = function(sequelize, DataTypes) {
     },
     profileImageURL: DataTypes.STRING,
     roles: {
-      type: DataTypes.JSON,
-      defaultValue: ["user"],
-      isArray: true
+      type: DataTypes.STRING,
+      defaultValue: "user",
+      isArray: false,
+      get: function() {
+        if (!this.isNewRecord) {
+          return this.dataValues.roles.split(',');
+        }
+      }
     },
     hashedPassword: {
       type: DataTypes.STRING,
@@ -114,17 +126,46 @@ module.exports = function(sequelize, DataTypes) {
         isValid: validateLocalStrategyPassword
       }
     },
-    provider: DataTypes.STRING,
-    providerData: {
-      type: DataTypes.JSON
-    },
-    additionalProvidersData: {
-      type: DataTypes.JSON
-    },
     salt: DataTypes.STRING,
     resetPasswordToken: DataTypes.STRING,
-    resetPasswordExpires: DataTypes.BIGINT
+    resetPasswordExpires: DataTypes.BIGINT,
+    provider: DataTypes.STRING,
+    providerData: {
+      type: DataTypes.TEXT
+    },
+    additionalProvidersData: {
+      type: DataTypes.TEXT
+    },
+    facebookUserId: DataTypes.STRING,
+    twitterUserId: DataTypes.STRING,
+    githubUserId: DataTypes.STRING,
+    googleUserId: DataTypes.STRING,
+    linkedinUserId: DataTypes.STRING,
+    paypalUserId: DataTypes.STRING
   }, {
+    hooks: {
+      beforeValidate: function(user, options) {
+        if (user.isNewRecord) {
+          user.roles = user.dataValues.roles.toString();
+        } else {
+          user.roles = user.roles.toString();
+        }
+      }
+    },
+    instanceMethods: {
+      makeSalt: function() {
+        return crypto.randomBytes(16).toString('base64');
+      },
+      authenticate: function(plainText) {
+        return this.encryptPassword(plainText, this.salt) === this.hashedPassword;
+      },
+      encryptPassword: function(password, salt) {
+        if (!password || !salt)
+          return '';
+        salt = new Buffer(salt, 'base64');
+        return crypto.pbkdf2Sync(password, salt, 10000, 64).toString('base64');
+      }
+    },
     classMethods: {
       findUniqueUsername: function(username, suffix, callback) {
         var _this = this;
@@ -142,29 +183,13 @@ module.exports = function(sequelize, DataTypes) {
           }
         });
       }
+    },
+    associate: function(models) {
+      if (models.article) {
+        User.hasMany(models.article);
+      }
     }
   });
-
-  User.prototype.makeSalt = function() {
-    return crypto.randomBytes(16).toString('base64');
-  };
-
-  User.prototype.authenticate = function(plainText) {
-    return this.encryptPassword(plainText, this.salt) === this.hashedPassword;
-  };
-
-  User.prototype.encryptPassword = function(password, salt) {
-    if (!password || !salt)
-      return '';
-    salt = new Buffer(salt, 'base64');
-    return crypto.pbkdf2Sync(password, salt, 10000, 64).toString('base64');
-  };
-
-  User.associate = function(models) {
-    if (models.article) {
-      User.hasMany(models.article);
-    }
-  };
 
   return User;
 };
